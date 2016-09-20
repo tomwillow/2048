@@ -273,7 +273,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine
 	RegisterClass (&wndclass) ;
 
 	hwnd = CreateWindow(szAppName,
-		TEXT ("2048"),
+		TEXT ("2048 PC极速版1.0  by Tom Willow"),
 		WS_OVERLAPPED|WS_SYSMENU|WS_CAPTION|WS_MINIMIZEBOX,
 		(cxScreen-width)/2,
 		(cyScreen-height)/2,
@@ -344,8 +344,10 @@ void FreshMainRect()
 	hdc=GetDC(hwnd);
 
 	SetBkMode(hdc,TRANSPARENT);
-	SelectObject(hdc,CreateSolidBrush(crGray));//分数块背景
-	SelectObject(hdc,CreatePen(PS_NULL,0,0));//去掉画笔
+	HBRUSH hBrush=CreateSolidBrush(crGray);
+	HPEN hPen=CreatePen(PS_NULL,0,0);
+	SelectObject(hdc,hBrush);//分数块背景
+	SelectObject(hdc,hPen);//去掉画笔
 	//主矩形
 	RoundRect(hdc,rectMain.left,rectMain.top,rectMain.right,rectMain.bottom,round,round);
 
@@ -358,7 +360,10 @@ void FreshMainRect()
 				DrawTextAdvance(hdc,int2ptchar(num[i][j]),&rect[i][j],(num[i][j]<1024)?26:18,700,(num[i][j]<=8)?crLessEqual8:crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
 			}
 		};
-		ReleaseDC(hwnd,hdc);
+
+	DeleteObject(hBrush);
+	DeleteObject(hPen);
+	ReleaseDC(hwnd,hdc);
 }
 
 void NewNum()
@@ -667,8 +672,14 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		hdc = BeginPaint(hwnd, &ps);
 
 		SetBkMode(hdc,TRANSPARENT);
-		SelectObject(hdc,CreateSolidBrush(crGray));//分数块背景
-		SelectObject(hdc,CreatePen(PS_NULL,0,0));//去掉画笔
+
+		HBRUSH hBrush;
+		hBrush=CreateSolidBrush(crGray);
+		SelectObject(hdc,hBrush);//分数块背景
+
+		HPEN hPen;
+		hPen=CreatePen(PS_NULL,0,0);
+		SelectObject(hdc,hPen);//去掉画笔
 
 		DrawTextAdvance(hdc,TEXT("2048"),&rectName,34,0,crText,FontName,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
 
@@ -700,40 +711,45 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 					DrawTextAdvance(hdc,int2ptchar(num[i][j]),&rect[i][j],(num[i][j]<1024)?26:18,700,(num[i][j]<=8)?crLessEqual8:crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
 				}
 			}
+
+			DeleteObject(hBrush);
+			DeleteObject(hPen);
 			EndPaint(hwnd, &ps);
 			return 0 ;
 	case WM_TIMER:
-		switch (wParam)
 		{
-		case BIRTHNEW:
-			static int count=0;
-			if (count<=10 && ( *(&num[0][0]+newnum_index)==2 || *(&num[0][0]+newnum_index)==4))
+			switch (wParam)
 			{
-				HDC hdc;
-				hdc=GetDC(hwnd);
-				SetBkMode(hdc,TRANSPARENT);
-				RECT rectnewnum_index;
+			case BIRTHNEW:
+				static int count=0;
+				if (count<=10 && ( *(&num[0][0]+newnum_index)==2 || *(&num[0][0]+newnum_index)==4))
+				{
+					HDC hdc;
+					hdc=GetDC(hwnd);
+					SetBkMode(hdc,TRANSPARENT);
+					RECT rectnewnum_index;
 
-				rectnewnum_index.left=rect[newnum_index/4][newnum_index%4].left+block/2*(1-count/10.0);
-				rectnewnum_index.right=rect[newnum_index/4][newnum_index%4].left+block/2*(1+count/10.0);
-				rectnewnum_index.top=rect[newnum_index/4][newnum_index%4].top+block/2*(1-count/10.0);
-				rectnewnum_index.bottom=rect[newnum_index/4][newnum_index%4].top+block/2*(1+count/10.0);
+					rectnewnum_index.left=rect[newnum_index/4][newnum_index%4].left+block/2*(1-count/10.0);
+					rectnewnum_index.right=rect[newnum_index/4][newnum_index%4].left+block/2*(1+count/10.0);
+					rectnewnum_index.top=rect[newnum_index/4][newnum_index%4].top+block/2*(1-count/10.0);
+					rectnewnum_index.bottom=rect[newnum_index/4][newnum_index%4].top+block/2*(1+count/10.0);
 
-				FillRectAdvance(hdc,&rectnewnum_index,Num2Color(*(&num[0][0]+newnum_index)));
-				DrawTextAdvance(hdc,int2ptchar(*(&num[0][0]+newnum_index)),&rectnewnum_index,((*(&num[0][0]+newnum_index)<1024)?26:18)*(count/10.0),700,(*(&num[0][0]+newnum_index)<=8)?crLessEqual8:crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+					FillRectAdvance(hdc,&rectnewnum_index,Num2Color(*(&num[0][0]+newnum_index)));
+					DrawTextAdvance(hdc,int2ptchar(*(&num[0][0]+newnum_index)),&rectnewnum_index,((*(&num[0][0]+newnum_index)<1024)?26:18)*(count/10.0),700,(*(&num[0][0]+newnum_index)<=8)?crLessEqual8:crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
 
-				ReleaseDC(hwnd,hdc);
-				count++;
+					ReleaseDC(hwnd,hdc);
+					count++;
+				}
+				else
+				{
+					KillTimer(hwnd,BIRTHNEW);
+					count=0;
+					//InvalidateRect(hwnd,&rectMain,FALSE);
+				}
+				break;
 			}
-			else
-			{
-				KillTimer(hwnd,BIRTHNEW);
-				count=0;
-				//InvalidateRect(hwnd,&rectMain,FALSE);
-			}
-			break;
+			return 0;
 		}
-		return 0;
 	case WM_KEYDOWN:
 		switch (wParam)
 		{

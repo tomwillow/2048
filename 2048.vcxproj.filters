@@ -64,6 +64,9 @@
     <None Include="Resource\039.wav">
       <Filter>资源文件</Filter>
     </None>
+    <None Include="Snap\Snap1.jpg">
+      <Filter>资源文件</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="2048.cpp">

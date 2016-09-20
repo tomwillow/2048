@@ -97,6 +97,7 @@
     <None Include="Resource\2048_16.ico" />
     <None Include="Resource\2048_256.ico" />
     <None Include="Resource\K_32.ico" />
+    <None Include="Snap\Snap1.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
