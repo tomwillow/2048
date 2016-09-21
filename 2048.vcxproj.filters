@@ -69,7 +69,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="2048.cpp">
+    <ClCompile Include="2048.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
