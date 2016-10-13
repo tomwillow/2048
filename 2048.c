@@ -18,6 +18,7 @@ const int height=600;
 #define HIGHSCORE_COUNT 10//排行榜数量
 #define HIGHSCORE_THRESHOLD 1000//低于1000分不计入高分榜
 #define MAX_NAME_LENGTH 64//最大姓名长度
+#define LONG_STRING_LENGTH 256//长字符串长度
 
 #define BIRTHNEW 1//产生新块计时器ID
 #define FRAMETIME 10//动画每帧时间（毫秒）
@@ -64,15 +65,7 @@ RECT rectButton[BNUM];
 struct
 {
 	TCHAR Name[sizeof(TCHAR)==1U?13:8];//ansi为10，unicode为8
-} sButton[BNUM]=
-{
-	TEXT("新游戏"),//0
-	//	TEXT("保存"),
-	TEXT("随机开局"),
-	TEXT("撤销(0)"),//2
-	TEXT("排行榜"),//3
-	TEXT("说明")//4
-};
+} szButtonName[BNUM];
 #define NEWGAME 0
 #define RANDOMGAME 1
 #define REDO 2
@@ -101,7 +94,7 @@ struct
 } sHighScore[HIGHSCORE_COUNT];
 
 TCHAR szFilePath[255];
-TCHAR szHighScore[sizeof(sHighScore)*HIGHSCORE_COUNT];
+TCHAR szScoreboard[sizeof(sHighScore)*HIGHSCORE_COUNT];
 
 //撤销数据
 unsigned int can_redo=0;//玩家可撤销次数
@@ -148,7 +141,7 @@ BOOL InHighScore();
 TCHAR * int2ptchar(unsigned int i);
 BOOL isDead();
 void FillRectAdvance(HDC hdc,RECT *rect,unsigned long color);
-void NewNum();
+void NewNum(BOOL wantDraw);
 BOOL AskStartNewGame();
 BOOL JudgeFreshHighScore();
 void JudgeAction(HWND hwnd,BOOL move);
@@ -239,6 +232,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine
 	MSG    msg;
 	WNDCLASS wndclass;
 	static TCHAR szAppName[] = TEXT("2048");
+	static TCHAR szAppTitle[64];
 	hInst=hInstance;
 	//获得程序路径
 	GetModuleFileName(NULL,szFilePath,sizeof(szFilePath));
@@ -277,8 +271,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine
 
 	RegisterClass (&wndclass) ;
 
+	LoadString(hInst, IDS_STRING_APPTITLE, szAppTitle, sizeof(szAppTitle));
 	hwnd = CreateWindow(szAppName,
-		TEXT ("2048 PC极速版1.0  by Tom Willow"),
+		szAppTitle,
 		WS_OVERLAPPED|WS_SYSMENU|WS_CAPTION|WS_MINIMIZEBOX,
 		(cxScreen-width)/2,
 		(cyScreen-height)/2,
@@ -308,7 +303,9 @@ TCHAR * int2ptchar(unsigned int i)
 
 void FreshRedoButton()
 {
-	wsprintf(sButton[REDO].Name,TEXT("撤销(%d)"),can_redo);
+	static TCHAR szRedoFormat[MAX_NAME_LENGTH];
+	LoadString(hInst, IDS_STRING_REDO, szRedoFormat, sizeof(szRedoFormat));
+	wsprintf(szButtonName[REDO].Name,szRedoFormat,can_redo);
 	EnableWindow(hwndButton[REDO],can_redo>0?TRUE:FALSE);
 	InvalidateRect(hwndButton[REDO],NULL,TRUE);
 }
@@ -375,9 +372,9 @@ void FreshMainRect()
 	ReleaseDC(hwnd,hdc);
 }
 
-void NewNum()
+void NewNum(BOOL wantDraw)
 {
-	unsigned int *p;
+	unsigned int *p=NULL;
 	int zero[16];//空白格
 	int i,j=0;
 	p=&num[0][0];
@@ -392,7 +389,7 @@ void NewNum()
 		srand(GetTickCount());
 		newnum_index=zero[rand() % j];
 		p+=newnum_index;
-		FreshMainRect();//先刷新画面再出新块
+		if (wantDraw) FreshMainRect();//先刷新画面再出新块
 		*p=(rand()%2)?2:4;
 		SetTimer(hwnd,BIRTHNEW,FRAMETIME,NULL);
 	}
@@ -423,13 +420,14 @@ BOOL AskStartNewGame()
 	}
 }
 
-void Fill0(HWND hwnd)
+//
+void Fill0(HWND hwnd,BOOL wantDraw)
 {
 	int i,j;
 	for (i=0;i<4;i++)
 		for (j=0;j<4;j++)
 			num[i][j]=0;
-	NewNum();
+	NewNum(wantDraw);
 	NewRecord();
 
 	onrandom=FALSE;
@@ -502,7 +500,7 @@ void JudgeAction(HWND hwnd,BOOL move)//所有方向键均会经过此处
 {
 	if (move)
 	{
-		NewNum();
+		NewNum(TRUE);
 		NewRecord();
 		if (redo_score>=REDO_SHRESHOLD)//每得一万分得一次撤销机会，一次合成超过了1万分也只计一次
 		{
@@ -527,7 +525,7 @@ void JudgeAction(HWND hwnd,BOOL move)//所有方向键均会经过此处
 						if (JudgeFreshHighScore()==FALSE)//随机成绩，非随机成绩弹出排行榜，手动清零
 							if (AskStartNewGame()==TRUE)
 							{
-								Fill0(hwnd);
+								Fill0(hwnd,TRUE);
 							}
 					}
 					else
@@ -535,14 +533,14 @@ void JudgeAction(HWND hwnd,BOOL move)//所有方向键均会经过此处
 						if (AskStartNewGame()==TRUE)
 						{
 							JudgeFreshHighScore();
-							Fill0(hwnd);
+							Fill0(hwnd,TRUE);
 						}
 					}
 				}
 				else//没有进入高分榜
 				{
 					if (AskStartNewGame()==TRUE)
-						Fill0(hwnd);
+						Fill0(hwnd,TRUE);
 				}
 			}
 			else//随机开局
@@ -637,6 +635,11 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			button_w=(width-2*border-(BNUM-1)*button_s)/BNUM;//宽-2个边框 -5个间隙button_s
 
+			LoadString(hInst, IDS_STRING_NEWGAME, szButtonName[0].Name, sizeof(szButtonName[0].Name));
+			LoadString(hInst, IDS_STRING_RANDOM, szButtonName[1].Name, sizeof(szButtonName[1].Name));
+			LoadString(hInst, IDS_STRING_REDO, szButtonName[2].Name, sizeof(szButtonName[2].Name));
+			LoadString(hInst, IDS_STRING_SCOREBOARD, szButtonName[3].Name, sizeof(szButtonName[3].Name));
+			LoadString(hInst, IDS_STRING_ABOUT, szButtonName[4].Name, sizeof(szButtonName[4].Name));
 			for (i=0;i<BNUM;i++)
 			{
 				rectButton[i].top=height-border-button_h;
@@ -645,7 +648,7 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 				rectButton[i].right=rectButton[i].left+button_w;
 				hwndButton[i] =CreateWindow(
 					TEXT("szChildClass"),
-					sButton[i].Name,
+					szButtonName[i].Name,
 					WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,//BS_PUSHBUTTON
 					rectButton[i].left,
 					rectButton[i].top,
@@ -676,8 +679,12 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 			}
 
-			if (step==0)
-				Fill0(hwnd);
+			//只有这个地方的Fill0 wantDraw参数为FALSE，这是为了修正
+			//“在没有2048.sav文件时打开程序会在左边多画一个主矩形”的BUG而添加的。
+			//BUG原因为窗口初始化时还没有建立hdc，而Fill0层层调用会画出主矩形，
+			//此时就画到窗口外面去了。在这里加了wantDraw参数后，初始化时不画矩形，至于初始块WM_PAINT中会画出的。
+			if (step == 0)
+				Fill0(hwnd,FALSE);
 
 			return 0;
 		}
@@ -688,6 +695,11 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 			PAINTSTRUCT ps ;
 			HBRUSH hBrush;
 			HPEN hPen;
+			static TCHAR szScore[MAX_NAME_LENGTH];
+			static TCHAR szHighScore[MAX_NAME_LENGTH];
+			static TCHAR szMemo1[MAX_NAME_LENGTH];
+			static TCHAR szMemo2[MAX_NAME_LENGTH];
+
 			hdc = BeginPaint(hwnd, &ps);
 
 			SetBkMode(hdc,TRANSPARENT);
@@ -704,17 +716,22 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//画分数块
 			RoundRect(hdc,rectScore.left,rectScore.top,rectScore.right,rectScore.bottom,round,round);
 
-			DrawTextAdvance(hdc,TEXT("分数"),&rectScoreTitle,12,700,crScoreTitle,FontName,DT_CENTER|DT_SINGLELINE|DT_BOTTOM);
+			LoadString(hInst, IDS_STRING_SCORE, szScore, sizeof(szScore));
+			DrawTextAdvance(hdc,szScore,&rectScoreTitle,12,700,crScoreTitle,FontName,DT_CENTER|DT_SINGLELINE|DT_BOTTOM);
 			DrawTextAdvance(hdc,int2ptchar(score),&rectScoreNum,24,0,crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_TOP);
 
 			//画最高分块
 			RoundRect(hdc,rectBest.left,rectBest.top,rectBest.right,rectBest.bottom,round,round);
 
-			DrawTextAdvance(hdc,TEXT("最高分"),&rectBestTitle,12,700,crScoreTitle,FontName,DT_CENTER|DT_SINGLELINE|DT_BOTTOM);
+			LoadString(hInst, IDS_STRING_HIGHSCORE, szHighScore, sizeof(szHighScore));
+			DrawTextAdvance(hdc,szHighScore,&rectBestTitle,12,700,crScoreTitle,FontName,DT_CENTER|DT_SINGLELINE|DT_BOTTOM);
 			DrawTextAdvance(hdc,int2ptchar(high_score),&rectBestNum,24,0,crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_TOP);
 
-			DrawTextAdvance(hdc,TEXT("把这些数合出2048！"),&rectVCenterText,13,0,crText,FontName,DT_LEFT|DT_SINGLELINE|DT_VCENTER);
-			DrawTextAdvance(hdc,TEXT("玩法：上下左右，移动色块，合出更大的数字！"),&rectBottomText,13,0,crText,FontName,DT_LEFT|DT_SINGLELINE|DT_VCENTER);
+			//画出上下的两句话
+			LoadString(hInst, IDS_STRING_MEMO1, szMemo1, sizeof(szMemo1));
+			LoadString(hInst, IDS_STRING_MEMO2, szMemo2, sizeof(szMemo2));
+			DrawTextAdvance(hdc,szMemo1,&rectVCenterText,13,0,crText,FontName,DT_LEFT|DT_SINGLELINE|DT_VCENTER);
+			DrawTextAdvance(hdc,szMemo2,&rectBottomText,13,0,crText,FontName,DT_LEFT|DT_SINGLELINE|DT_VCENTER);
 
 			//主矩形
 			RoundRect(hdc,rectMain.left,rectMain.top,rectMain.right,rectMain.bottom,round,round);
@@ -748,13 +765,13 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 						hdc=GetDC(hwnd);
 						SetBkMode(hdc,TRANSPARENT);
 
-						rectnewnum_index.left=rect[newnum_index/4][newnum_index%4].left+block/2*(1-count/10.0);
-						rectnewnum_index.right=rect[newnum_index/4][newnum_index%4].left+block/2*(1+count/10.0);
-						rectnewnum_index.top=rect[newnum_index/4][newnum_index%4].top+block/2*(1-count/10.0);
-						rectnewnum_index.bottom=rect[newnum_index/4][newnum_index%4].top+block/2*(1+count/10.0);
+						rectnewnum_index.left=(LONG)(rect[newnum_index/4][newnum_index%4].left+block/2*(1-count/10.0));
+						rectnewnum_index.right=(LONG)(rect[newnum_index/4][newnum_index%4].left+block/2*(1+count/10.0));
+						rectnewnum_index.top = (LONG)(rect[newnum_index / 4][newnum_index % 4].top + block / 2 * (1 - count / 10.0));
+						rectnewnum_index.bottom = (LONG)(rect[newnum_index / 4][newnum_index % 4].top + block / 2 * (1 + count / 10.0));
 
 						FillRectAdvance(hdc,&rectnewnum_index,Num2Color(*(&num[0][0]+newnum_index)));
-						DrawTextAdvance(hdc,int2ptchar(*(&num[0][0]+newnum_index)),&rectnewnum_index,((*(&num[0][0]+newnum_index)<1024)?26:18)*(count/10.0),700,(*(&num[0][0]+newnum_index)<=8)?crLessEqual8:crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+						DrawTextAdvance(hdc,int2ptchar(*(&num[0][0]+newnum_index)),&rectnewnum_index,(long)(((*(&num[0][0]+newnum_index)<1024)?26:18)*(count/10.0)),700,(*(&num[0][0]+newnum_index)<=8)?crLessEqual8:crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
 
 						ReleaseDC(hwnd,hdc);
 						count++;
@@ -988,8 +1005,13 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 			return 0;
 		}
 	case WM_CLOSE:
+	{
+		static TCHAR szClose[MAX_NAME_LENGTH];
+		static TCHAR szCloseText[MAX_NAME_LENGTH];
+		LoadString(hInst, IDS_STRING_CLOSE, szClose, sizeof(szClose));
+		LoadString(hInst, IDS_STRING_CLOSETEXT, szCloseText, sizeof(szCloseText));
 		MessageBeep(0);
-		if (IDOK==MessageBox(hwnd,TEXT("是否退出？\n（当前游戏将被保存）"),TEXT("退出"),MB_OKCANCEL|MB_ICONQUESTION))
+		if (IDOK == MessageBox(hwnd, szCloseText, szClose, MB_OKCANCEL | MB_ICONQUESTION))
 		{
 			//退出过程中保存文件
 			SaveGame();
@@ -999,6 +1021,7 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			return 0;//返回消息，不退出
 		}
+	}
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0 ;
@@ -1028,7 +1051,13 @@ void SaveGame()
 		_fcloseall();
 	}
 	else
-		MessageBox(hwnd,TEXT("进度保存失败。"),TEXT("提示"),0);
+	{
+		static TCHAR szPrompt[MAX_NAME_LENGTH];
+		static TCHAR szPromptText[MAX_NAME_LENGTH];
+		LoadString(hInst, IDS_STRING_PROMPT, szPrompt, sizeof(szPrompt));
+		LoadString(hInst, IDS_STRING_FAILTOSAVE, szPromptText, sizeof(szPromptText));
+		MessageBox(hwnd, szPromptText, szPrompt, 0);
+	}
 }
 
 LRESULT CALLBACK ChildWndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -1052,7 +1081,7 @@ LRESULT CALLBACK ChildWndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
 
 			FillRectAdvance(hDCMem,&rect,onmouse==GetDlgCtrlID(hwnd)?cr32:crGray);
 			SetBkMode(hDCMem,TRANSPARENT);
-			DrawTextAdvance(hDCMem,sButton[GetDlgCtrlID(hwnd)].Name,&rect,10,700,crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+			DrawTextAdvance(hDCMem,szButtonName[GetDlgCtrlID(hwnd)].Name,&rect,10,700,crWhite,FontName,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
 
 			BitBlt(hdc, 0, 0, rect.right - rect.left, rect.bottom - rect.top, hDCMem, 0, 0, SRCCOPY);
 			DeleteObject(hBitmap);
@@ -1070,18 +1099,22 @@ LRESULT CALLBACK ChildWndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
 				if (has_record_score==FALSE)//没有记录成绩
 					if (InHighScore() && score>=HIGHSCORE_THRESHOLD)//进入高分榜，大于1000分
 						JudgeFreshHighScore();//随机成绩，非随机成绩弹出排行榜，然后清零
-				Fill0(GetParent(hwnd));
+				Fill0(GetParent(hwnd),TRUE);
 			}
 			break;
 		case RANDOMGAME:
 			if (redo_count>STEP_BEFORE_DEAD)
 			{
+				static TCHAR szStartRandom[MAX_NAME_LENGTH];
+				static TCHAR szStartRandomText[MAX_NAME_LENGTH];
+				LoadString(hInst, IDS_STRING_STARTRANDOM, szStartRandom, sizeof(szStartRandom));
+				LoadString(hInst, IDS_STRING_STARTRANDOMTEXT, szStartRandomText, sizeof(szStartRandomText));
 				MessageBeep(0);
-				if (MessageBox(GetParent(hwnd),TEXT("是否随机开局？\n（将开始新游戏）"),TEXT("随机开局"),MB_YESNO|MB_ICONQUESTION)==IDNO)
+				if (MessageBox(GetParent(hwnd), szStartRandomText , szStartRandom, MB_YESNO | MB_ICONQUESTION) == IDNO)
 					break;
 			}
 			score=0;
-			Fill0(hwnd);
+			Fill0(hwnd,TRUE);
 			onrandom=TRUE;
 			while (isDead()==FALSE)
 				SendMessage(GetParent(hwnd),WM_KEYDOWN,0x25+(rand() % 4),0);//随机按4个方向键
@@ -1117,20 +1150,26 @@ LRESULT CALLBACK ChildWndProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lP
 		case HIGHSCORE:
 			{
 				int i;
+				static TCHAR szScoreboard1[MAX_NAME_LENGTH];
+				static TCHAR szScoreboard2[MAX_NAME_LENGTH];
+				static TCHAR szScoreboard3[MAX_NAME_LENGTH];
+				LoadString(hInst, IDS_STRING_SCOREBOARD1, szScoreboard1, sizeof(szScoreboard1));
+				LoadString(hInst, IDS_STRING_SCOREBOARD2, szScoreboard2, sizeof(szScoreboard2));
+				LoadString(hInst, IDS_STRING_SCOREBOARD3, szScoreboard3, sizeof(szScoreboard3));
 				MessageBeep(0);
-				lstrcpy(szHighScore,TEXT("\t--- 排行榜 ---\n"));
-				lstrcat(szHighScore,TEXT("\n 排名    姓名\t  得分"));
+				lstrcpy(szScoreboard,szScoreboard1);
+				lstrcat(szScoreboard,szScoreboard2);
 				for (i=0;i<10;i++)
 				{
 					if (sHighScore[i].score!=0)
 					{
-						wsprintf(buffer_temp,TEXT("\n  %2d      %-10.10s\t  %-d分"),i+1,sHighScore[i].name,sHighScore[i].score);
-						lstrcat(szHighScore,buffer_temp);
+						wsprintf(buffer_temp,szScoreboard3,i+1,sHighScore[i].name,sHighScore[i].score);
+						lstrcat(szScoreboard,buffer_temp);
 					}
 					else
 						break;
 				}
-				MessageBox(GetParent(hwnd),szHighScore,TEXT("排行榜"),0);
+				MessageBox(GetParent(hwnd),szScoreboard,szButtonName[3].Name,0);
 				break;
 			}
 		case README://说明
@@ -1156,7 +1195,18 @@ BOOL CALLBACK AboutDlgProc(HWND hDlg,UINT message,WPARAM wParam,LPARAM lParam)
 	switch (message)
 	{
 	case WM_INITDIALOG:
+	{
+		static TCHAR szAboutText1[LONG_STRING_LENGTH];
+		static TCHAR szAboutText2[MAX_NAME_LENGTH];
+		static TCHAR szAboutText3[MAX_NAME_LENGTH];
+		LoadString(hInst, IDS_STRING_ABOUTTEXT1, szAboutText1, sizeof(szAboutText1));
+		LoadString(hInst, IDS_STRING_ABOUTTEXT2, szAboutText2, sizeof(szAboutText2));
+		LoadString(hInst, IDS_STRING_ABOUTTEXT3, szAboutText3, sizeof(szAboutText3));
+		SetDlgItemText(hDlg, IDC_STATIC1, szAboutText1);
+		SetDlgItemText(hDlg, IDC_STATIC2, szAboutText2);
+		SetDlgItemText(hDlg, IDC_STATIC3, szAboutText3);
 		return TRUE;
+	}
 	case WM_COMMAND:
 		switch (LOWORD(wParam))
 		{
@@ -1188,14 +1238,12 @@ BOOL CALLBACK NameDlgProc(HWND hDlg,UINT message,WPARAM wParam,LPARAM lParam)
 				else
 					FreshHighScore(TEXT("无名"));
 				EndDialog(hDlg,0);
-				PlaySound(NULL,NULL,NULL);
 				SendMessage(hwndButton[HIGHSCORE],WM_LBUTTONDOWN,0,0);
 				return TRUE;
 			}
 		case IDCANCEL:
 			FreshHighScore(TEXT("无名"));
 			EndDialog(hDlg,0);
-			PlaySound(NULL,NULL,NULL);
 			SendMessage(hwndButton[HIGHSCORE],WM_LBUTTONDOWN,0,0);
 			return TRUE;
 		}
