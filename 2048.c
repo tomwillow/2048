@@ -2,11 +2,13 @@
 #include <tchar.h>//_tcschr
 #include <stdio.h>//fread
 #include <CommCtrl.h>//定义控件样式
-#include <mmsystem.h>
+#include <mmsystem.h>//播放声音
+//#include <WinVer.h>
 #include "Resource.h"//资源
 #include "ControlStyle.h"//清单文件
-#pragma comment(lib, "WINMM.LIB")
-#pragma comment(lib,"comctl32.lib")
+#pragma comment(lib, "WINMM.LIB")//播放声音
+#pragma comment(lib,"comctl32.lib")//样式
+#pragma comment(lib,"Version.lib")
 
 const int width=400;
 const int height=600;
@@ -227,12 +229,40 @@ void Redo()
 	}
 }
 
+//按照指定的格式获取版本号
+void myGetFileVersion(HINSTANCE hInst,TCHAR result[],TCHAR format[])
+{
+	TCHAR modFilename[MAX_PATH];
+	if (GetModuleFileName(hInst, modFilename, MAX_PATH) > 0)
+	{
+		DWORD dwHandle = 0;
+		DWORD dwSize = GetFileVersionInfoSize(modFilename, &dwHandle);
+		if (dwSize > 0)
+		{
+			LPBYTE lpInfo = malloc(dwSize*sizeof(BYTE));
+			ZeroMemory(lpInfo, dwSize);
+			if (GetFileVersionInfo(modFilename, 0, dwSize, lpInfo))
+			{
+				UINT valLen = MAX_PATH;
+				LPVOID valPtr = NULL;
+				if (VerQueryValue(lpInfo, TEXT("\\"), &valPtr, &valLen))
+				{
+					VS_FIXEDFILEINFO* pFinfo = (VS_FIXEDFILEINFO*)valPtr;
+					// convert to text
+					wsprintf(result, format, (pFinfo->dwFileVersionMS >> 16) & 0xFF, (pFinfo->dwFileVersionMS) & 0xFF, (pFinfo->dwFileVersionLS >> 16) & 0xFF, (pFinfo->dwFileVersionLS) & 0xFF);
+				}
+			}
+			free(lpInfo);
+		}
+	}
+}
+
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int iCmdShow)
 {
 	MSG    msg;
 	WNDCLASS wndclass;
 	static TCHAR szAppName[] = TEXT("2048");
-	static TCHAR szAppTitle[64];
+	static TCHAR szAppTitle[MAX_PATH];
 	hInst=hInstance;
 	//获得程序路径
 	GetModuleFileName(NULL,szFilePath,sizeof(szFilePath));
@@ -260,7 +290,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine
 
 	if (!RegisterClass (&wndclass))
 	{
-		MessageBox (NULL, TEXT ("This program requires Windows NT!"),szAppName, MB_ICONERROR) ;
+		MessageBox (NULL, TEXT ("Fail to register WndClass registed."),szAppName, MB_ICONERROR) ;
 		return 0 ;
 	}
 
@@ -272,6 +302,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine
 	RegisterClass (&wndclass) ;
 
 	LoadString(hInst, IDS_STRING_APPTITLE, szAppTitle, sizeof(szAppTitle));
+	myGetFileVersion(hInst, szAppTitle, szAppTitle);
 	hwnd = CreateWindow(szAppName,
 		szAppTitle,
 		WS_OVERLAPPED|WS_SYSMENU|WS_CAPTION|WS_MINIMIZEBOX,
